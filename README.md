@@ -1,1 +1,0 @@
-# finvestea
