@@ -30,11 +30,13 @@ class _PanVerificationScreenState extends State<PanVerificationScreen> {
           onPressed: () => context.pop(),
         ),
       ),
-      body: Padding(
-        padding: const EdgeInsets.all(24.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
+      body: Container(
+        decoration: AppTheme.mainGradient,
+        child: Padding(
+          padding: const EdgeInsets.all(24.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
             Text(
               'Verify PAN',
               style: Theme.of(
@@ -97,6 +99,7 @@ class _PanVerificationScreenState extends State<PanVerificationScreen> {
               child: const Text('Verify PAN'),
             ),
           ],
+          ),
         ),
       ),
     );

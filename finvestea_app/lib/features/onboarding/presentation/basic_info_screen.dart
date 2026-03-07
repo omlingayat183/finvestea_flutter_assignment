@@ -32,13 +32,15 @@ class _BasicInfoScreenState extends State<BasicInfoScreen> {
           onPressed: () => context.pop(),
         ),
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(24.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Tell us about yourself',
+      body: Container(
+        decoration: AppTheme.mainGradient,
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(24.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Tell us about yourself',
               style: Theme.of(
                 context,
               ).textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.bold),
@@ -83,6 +85,7 @@ class _BasicInfoScreenState extends State<BasicInfoScreen> {
               child: const Text('Continue'),
             ),
           ],
+          ),
         ),
       ),
     );

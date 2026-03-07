@@ -120,7 +120,7 @@ class DashboardScreen extends StatelessWidget {
           ],
         ),
         InkWell(
-          onTap: () => context.push('/help'),
+          onTap: () => context.push('/news-feed'),
           borderRadius: BorderRadius.circular(16),
           child: Container(
             padding: const EdgeInsets.all(12),

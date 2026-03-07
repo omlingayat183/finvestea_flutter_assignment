@@ -17,6 +17,7 @@ import '../features/dashboard/presentation/profile_screen.dart';
 import '../features/dashboard/presentation/settings_screen.dart';
 import '../features/dashboard/presentation/investment_marketplace_screen.dart';
 import '../features/dashboard/presentation/portfolio_reports_screen.dart';
+import '../features/dashboard/presentation/portfolio_import_screen.dart';
 import '../features/dashboard/presentation/recommended_portfolio_screen.dart';
 import '../features/dashboard/presentation/transaction_history_screen.dart';
 import '../features/dashboard/presentation/help_center_screen.dart';
@@ -37,6 +38,9 @@ import '../features/academy/presentation/article_page_screen.dart';
 import '../features/calculators/presentation/calculators_home_screen.dart';
 import '../features/calculators/presentation/sip_calculator_screen.dart';
 import '../features/calculators/presentation/retirement_planner_screen.dart';
+import '../features/calculators/presentation/lumpsum_calculator_screen.dart';
+import '../features/calculators/presentation/emi_calculator_screen.dart';
+import '../features/calculators/presentation/tax_saver_calculator_screen.dart';
 import '../features/academy/presentation/academy_home_screen.dart';
 import '../features/academy/presentation/course_list_screen.dart';
 import '../features/academy/presentation/video_player_screen.dart';
@@ -115,6 +119,14 @@ final goRouter = GoRouter(
       builder: (context, state) => const PortfolioReportsScreen(),
     ),
     GoRoute(
+      path: '/portfolio-import',
+      builder: (context, state) => const PortfolioImportScreen(),
+    ),
+    GoRoute(
+      path: '/portfolio-insights',
+      builder: (context, state) => const PortfolioReportsScreen(),
+    ),
+    GoRoute(
       path: '/recommended-portfolio',
       builder: (context, state) => const RecommendedPortfolioScreen(),
     ),
@@ -189,6 +201,18 @@ final goRouter = GoRouter(
     GoRoute(
       path: '/calculators/retirement',
       builder: (context, state) => const RetirementPlannerScreen(),
+    ),
+    GoRoute(
+      path: '/calculators/lumpsum',
+      builder: (context, state) => const LumpsumCalculatorScreen(),
+    ),
+    GoRoute(
+      path: '/calculators/emi',
+      builder: (context, state) => const EmiCalculatorScreen(),
+    ),
+    GoRoute(
+      path: '/calculators/tax-saver',
+      builder: (context, state) => const TaxSaverCalculatorScreen(),
     ),
     GoRoute(
       path: '/academy',

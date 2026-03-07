@@ -28,11 +28,13 @@ class _RiskProfilingScreenState extends State<RiskProfilingScreen> {
           onPressed: () => context.pop(),
         ),
       ),
-      body: Padding(
-        padding: const EdgeInsets.all(24.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
+      body: Container(
+        decoration: AppTheme.mainGradient,
+        child: Padding(
+          padding: const EdgeInsets.all(24.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
             const LinearProgressIndicator(
               value: 0.2,
               backgroundColor: Colors.white10,
@@ -67,6 +69,7 @@ class _RiskProfilingScreenState extends State<RiskProfilingScreen> {
               child: Text(_currentStep < 5 ? 'Next Question' : 'View Results'),
             ),
           ],
+          ),
         ),
       ),
     );

@@ -17,11 +17,13 @@ class BankLinkingScreen extends StatelessWidget {
           onPressed: () => context.pop(),
         ),
       ),
-      body: Padding(
-        padding: const EdgeInsets.all(24.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
+      body: Container(
+        decoration: AppTheme.mainGradient,
+        child: Padding(
+          padding: const EdgeInsets.all(24.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
             Text(
               'Link Bank Account',
               style: Theme.of(
@@ -70,6 +72,7 @@ class BankLinkingScreen extends StatelessWidget {
               child: const Text('Continue'),
             ),
           ],
+          ),
         ),
       ),
     );

@@ -40,11 +40,13 @@ class _CkycLookupScreenState extends State<CkycLookupScreen> {
           onPressed: () => context.pop(),
         ),
       ),
-      body: Padding(
-        padding: const EdgeInsets.all(24.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
+      body: Container(
+        decoration: AppTheme.mainGradient,
+        child: Padding(
+          padding: const EdgeInsets.all(24.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
             Text(
               'KYC Verification',
               style: Theme.of(
@@ -112,6 +114,7 @@ class _CkycLookupScreenState extends State<CkycLookupScreen> {
                 child: const Text('Continue to Aadhaar KYC'),
               ),
           ],
+          ),
         ),
       ),
     );

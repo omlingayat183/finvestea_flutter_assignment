@@ -30,11 +30,13 @@ class _AadhaarKycScreenState extends State<AadhaarKycScreen> {
           onPressed: () => context.pop(),
         ),
       ),
-      body: Padding(
-        padding: const EdgeInsets.all(24.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
+      body: Container(
+        decoration: AppTheme.mainGradient,
+        child: Padding(
+          padding: const EdgeInsets.all(24.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
             Text(
               'Aadhaar KYC',
               style: Theme.of(
@@ -102,6 +104,7 @@ class _AadhaarKycScreenState extends State<AadhaarKycScreen> {
               ),
             ),
           ],
+          ),
         ),
       ),
     );

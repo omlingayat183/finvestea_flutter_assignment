@@ -9,8 +9,10 @@ class AccountActivationScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: SafeArea(
-        child: Padding(
+      body: Container(
+        decoration: AppTheme.mainGradient,
+        child: SafeArea(
+          child: Padding(
           padding: const EdgeInsets.all(32.0),
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
@@ -55,6 +57,7 @@ class AccountActivationScreen extends StatelessWidget {
           ),
         ),
       ),
+    ),
     );
   }
 }
