@@ -50,6 +50,7 @@ import '../features/academy/presentation/video_player_screen.dart';
 import '../features/loans/presentation/loans_home_screen.dart';
 import '../features/loans/presentation/loan_application_screen.dart';
 import '../features/loans/presentation/lender_selection_screen.dart';
+import '../features/dashboard/presentation/add_investment_screen.dart';
 
 // Auth-guarded routes — unauthenticated users are redirected to /welcome.
 const _protectedRoutes = {
@@ -62,7 +63,7 @@ const _protectedRoutes = {
   '/calculators/sip', '/calculators/retirement', '/calculators/lumpsum',
   '/calculators/emi', '/calculators/tax-saver', '/academy', '/academy/courses',
   '/academy/video-player', '/academy/article', '/loans', '/loans/apply',
-  '/loans/lender-selection',
+  '/loans/lender-selection', '/add-investment',
 };
 
 GoRouter createRouter(ChangeNotifier authNotifier) {
@@ -276,6 +277,10 @@ GoRouter createRouter(ChangeNotifier authNotifier) {
       GoRoute(
         path: '/loans/lender-selection',
         builder: (context, state) => const LenderSelectionScreen(),
+      ),
+      GoRoute(
+        path: '/add-investment',
+        builder: (context, state) => const AddInvestmentScreen(),
       ),
     ],
   );

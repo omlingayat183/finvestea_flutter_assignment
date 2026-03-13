@@ -2,7 +2,10 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lucide_icons/lucide_icons.dart';
+import 'package:file_picker/file_picker.dart';
+import 'package:excel/excel.dart' as xl;
 import '../../../core/theme.dart';
+import '../../../core/services/portfolio_service.dart';
 import '../services/portfolio_document_parser.dart';
 
 class PortfolioImportScreen extends StatefulWidget {
@@ -18,10 +21,12 @@ class _PortfolioImportScreenState extends State<PortfolioImportScreen>
   String? _selectedFileName;
   double _uploadProgress = 0;
   String? _errorMessage;
+  int _importedCount = 0;
   late AnimationController _pulseController;
-  late AnimationController _progressController;
   late Animation<double> _pulseAnimation;
   Timer? _progressTimer;
+
+  final _service = PortfolioService();
 
   @override
   void initState() {
@@ -34,27 +39,49 @@ class _PortfolioImportScreenState extends State<PortfolioImportScreen>
     _pulseAnimation = Tween<double>(begin: 0.95, end: 1.05).animate(
       CurvedAnimation(parent: _pulseController, curve: Curves.easeInOut),
     );
-
-    _progressController = AnimationController(
-      duration: const Duration(seconds: 3),
-      vsync: this,
-    );
   }
 
   @override
   void dispose() {
     _pulseController.dispose();
-    _progressController.dispose();
     _progressTimer?.cancel();
     super.dispose();
   }
 
-  void _simulateFilePickAndUpload(String fileName) {
-    final validationError = PortfolioDocumentParser.validateFile(
-      fileName,
-      512 * 1024, // ~512KB simulated
-    );
+  Future<void> _pickAndUploadFile() async {
+    FilePickerResult? result;
+    try {
+      result = await FilePicker.platform.pickFiles(
+        type: FileType.custom,
+        allowedExtensions: ['csv', 'xlsx', 'xls'],
+        withData: true,
+      );
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _errorMessage = 'Could not open file picker: $e';
+          _state = _ImportState.error;
+        });
+      }
+      return;
+    }
 
+    if (result == null || result.files.isEmpty) return;
+
+    final file = result.files.first;
+    final fileName = file.name;
+    final bytes = file.bytes;
+
+    if (bytes == null) {
+      setState(() {
+        _errorMessage = 'Could not read file data.';
+        _state = _ImportState.error;
+      });
+      return;
+    }
+
+    final validationError =
+        PortfolioDocumentParser.validateFile(fileName, bytes.length);
     if (validationError != null) {
       setState(() {
         _errorMessage = validationError;
@@ -70,29 +97,69 @@ class _PortfolioImportScreenState extends State<PortfolioImportScreen>
       _errorMessage = null;
     });
 
-    // Animate progress bar
+    // Animate progress while parsing/saving
     int step = 0;
-    _progressTimer = Timer.periodic(const Duration(milliseconds: 80), (timer) {
+    _progressTimer =
+        Timer.periodic(const Duration(milliseconds: 60), (timer) {
       step++;
-      setState(() {
-        _uploadProgress = (step / 37).clamp(0.0, 1.0);
-      });
-      if (step >= 37) {
-        timer.cancel();
+      if (mounted) {
+        setState(() {
+          // Only advance to 80% — the last 20% fills after Firestore save
+          _uploadProgress = ((step / 40) * 0.8).clamp(0.0, 0.8);
+        });
+      }
+      if (step >= 40) timer.cancel();
+    });
+
+    try {
+      List<PortfolioInvestment> investments;
+      final ext = fileName.toLowerCase();
+
+      if (ext.endsWith('.csv')) {
+        final content = String.fromCharCodes(bytes);
+        investments = PortfolioDocumentParser.parseCsv(content);
+      } else {
+        // xlsx / xls
+        final excel = xl.Excel.decodeBytes(bytes);
+        final sheetName = excel.tables.keys.first;
+        final sheet = excel.tables[sheetName]!;
+        final rows = sheet.rows
+            .map((row) => row.map((cell) => cell?.value).toList())
+            .toList();
+        investments = PortfolioDocumentParser.parseExcelRows(rows);
+      }
+
+      if (investments.isEmpty) {
+        _progressTimer?.cancel();
+        if (mounted) {
+          setState(() {
+            _errorMessage =
+                'No valid investment rows found. Check that your file matches the expected format.';
+            _state = _ImportState.error;
+          });
+        }
+        return;
+      }
+
+      final count = await _service.addBulk(investments);
+      _progressTimer?.cancel();
+
+      if (mounted) {
         setState(() {
           _uploadProgress = 1.0;
+          _importedCount = count;
           _state = _ImportState.success;
         });
       }
-    });
-  }
-
-  void _onDemoLoad() {
-    _simulateFilePickAndUpload('portfolio_2024.xlsx');
-  }
-
-  void _onCsvLoad() {
-    _simulateFilePickAndUpload('my_investments.csv');
+    } catch (e) {
+      _progressTimer?.cancel();
+      if (mounted) {
+        setState(() {
+          _errorMessage = 'Failed to process file: $e';
+          _state = _ImportState.error;
+        });
+      }
+    }
   }
 
   void _onViewInsights() {
@@ -105,6 +172,7 @@ class _PortfolioImportScreenState extends State<PortfolioImportScreen>
       _selectedFileName = null;
       _uploadProgress = 0;
       _errorMessage = null;
+      _importedCount = 0;
     });
   }
 
@@ -129,7 +197,7 @@ class _PortfolioImportScreenState extends State<PortfolioImportScreen>
                       if (_state == _ImportState.idle) ...[
                         _buildFormatSupportRow(),
                         const SizedBox(height: 32),
-                        _buildSampleFormats(),
+                        _buildManualEntryBanner(context),
                       ],
                       if (_state == _ImportState.error) ...[
                         const SizedBox(height: 8),
@@ -172,7 +240,8 @@ class _PortfolioImportScreenState extends State<PortfolioImportScreen>
             ),
           ),
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+            padding:
+                const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
             decoration: BoxDecoration(
               color: AppTheme.secondaryAccentColor.withOpacity(0.15),
               borderRadius: BorderRadius.circular(20),
@@ -270,17 +339,17 @@ class _PortfolioImportScreenState extends State<PortfolioImportScreen>
 
   Widget _buildDropZone() {
     return GestureDetector(
-      onTap: _onDemoLoad,
+      onTap: _pickAndUploadFile,
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 300),
         width: double.infinity,
-        padding: const EdgeInsets.symmetric(vertical: 48, horizontal: 24),
+        padding:
+            const EdgeInsets.symmetric(vertical: 48, horizontal: 24),
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(24),
           border: Border.all(
             color: AppTheme.primaryColor.withOpacity(0.4),
             width: 2,
-            // Dashed-like via soft gradient
           ),
           gradient: LinearGradient(
             colors: [
@@ -312,8 +381,9 @@ class _PortfolioImportScreenState extends State<PortfolioImportScreen>
             ),
             const SizedBox(height: 8),
             const Text(
-              'or drag and drop your file here',
-              style: TextStyle(color: AppTheme.textSecondary, fontSize: 13),
+              'Supports CSV and Excel (.xlsx / .xls)',
+              style:
+                  TextStyle(color: AppTheme.textSecondary, fontSize: 13),
             ),
             const SizedBox(height: 20),
             Row(
@@ -324,8 +394,6 @@ class _PortfolioImportScreenState extends State<PortfolioImportScreen>
                 _buildFormatBadge('XLS'),
                 const SizedBox(width: 8),
                 _buildFormatBadge('CSV'),
-                const SizedBox(width: 8),
-                _buildFormatBadge('PDF'),
               ],
             ),
           ],
@@ -368,7 +436,8 @@ class _PortfolioImportScreenState extends State<PortfolioImportScreen>
           const SizedBox(height: 16),
           Text(
             _selectedFileName ?? 'file.xlsx',
-            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+            style: const TextStyle(
+                fontWeight: FontWeight.bold, fontSize: 15),
           ),
           const SizedBox(height: 20),
           ClipRRect(
@@ -376,14 +445,16 @@ class _PortfolioImportScreenState extends State<PortfolioImportScreen>
             child: LinearProgressIndicator(
               value: _uploadProgress,
               backgroundColor: Colors.white.withOpacity(0.1),
-              valueColor: const AlwaysStoppedAnimation(AppTheme.primaryColor),
+              valueColor: const AlwaysStoppedAnimation(
+                  AppTheme.primaryColor),
               minHeight: 8,
             ),
           ),
           const SizedBox(height: 12),
           Text(
-            '${(_uploadProgress * 100).toInt()}% — Uploading & Analyzing...',
-            style: const TextStyle(color: AppTheme.textSecondary, fontSize: 13),
+            '${(_uploadProgress * 100).toInt()}% — Processing & Saving...',
+            style: const TextStyle(
+                color: AppTheme.textSecondary, fontSize: 13),
           ),
         ],
       ),
@@ -396,7 +467,8 @@ class _PortfolioImportScreenState extends State<PortfolioImportScreen>
       padding: const EdgeInsets.all(28),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: AppTheme.primaryColor.withOpacity(0.5)),
+        border:
+            Border.all(color: AppTheme.primaryColor.withOpacity(0.5)),
         gradient: LinearGradient(
           colors: [
             AppTheme.primaryColor.withOpacity(0.12),
@@ -423,23 +495,26 @@ class _PortfolioImportScreenState extends State<PortfolioImportScreen>
           const SizedBox(height: 16),
           const Text(
             'Upload Successful!',
-            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            style:
+                TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
           ),
           const SizedBox(height: 6),
           Text(
             _selectedFileName ?? 'portfolio.xlsx',
-            style: const TextStyle(color: AppTheme.textSecondary, fontSize: 13),
+            style: const TextStyle(
+                color: AppTheme.textSecondary, fontSize: 13),
           ),
           const SizedBox(height: 12),
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+            padding: const EdgeInsets.symmetric(
+                horizontal: 14, vertical: 6),
             decoration: BoxDecoration(
               color: AppTheme.primaryColor.withOpacity(0.1),
               borderRadius: BorderRadius.circular(20),
             ),
-            child: const Text(
-              '5 investments extracted · Data ready',
-              style: TextStyle(
+            child: Text(
+              '$_importedCount investment${_importedCount == 1 ? '' : 's'} imported · Saved to portfolio',
+              style: const TextStyle(
                 color: AppTheme.primaryColor,
                 fontSize: 12,
                 fontWeight: FontWeight.w600,
@@ -467,8 +542,8 @@ class _PortfolioImportScreenState extends State<PortfolioImportScreen>
         ),
         const SizedBox(width: 12),
         _buildSupportItem(
-          LucideIcons.file,
-          'PDF\n(Tables only)',
+          LucideIcons.info,
+          'Columns:\nName, Type, Amount...',
           AppTheme.secondaryAccentColor,
         ),
       ],
@@ -478,7 +553,8 @@ class _PortfolioImportScreenState extends State<PortfolioImportScreen>
   Widget _buildSupportItem(IconData icon, String label, Color color) {
     return Expanded(
       child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 8),
+        padding:
+            const EdgeInsets.symmetric(vertical: 16, horizontal: 8),
         decoration: AppTheme.glassDecoration,
         child: Column(
           children: [
@@ -499,48 +575,9 @@ class _PortfolioImportScreenState extends State<PortfolioImportScreen>
     );
   }
 
-  Widget _buildSampleFormats() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Text(
-          'QUICK LOAD SAMPLES',
-          style: TextStyle(
-            color: AppTheme.primaryColor,
-            fontSize: 11,
-            fontWeight: FontWeight.bold,
-            letterSpacing: 1.2,
-          ),
-        ),
-        const SizedBox(height: 12),
-        _buildSampleItem(
-          'Demo Excel Portfolio',
-          'finvestea_portfolio_sample.xlsx · 5 investments',
-          LucideIcons.fileSpreadsheet,
-          AppTheme.primaryColor,
-          _onDemoLoad,
-        ),
-        const SizedBox(height: 8),
-        _buildSampleItem(
-          'Sample CSV Import',
-          'my_investments.csv · Quick format',
-          LucideIcons.fileText,
-          const Color(0xFF60A5FA),
-          _onCsvLoad,
-        ),
-      ],
-    );
-  }
-
-  Widget _buildSampleItem(
-    String title,
-    String subtitle,
-    IconData icon,
-    Color color,
-    VoidCallback onTap,
-  ) {
+  Widget _buildManualEntryBanner(BuildContext context) {
     return GestureDetector(
-      onTap: onTap,
+      onTap: () => context.push('/add-investment'),
       child: Container(
         padding: const EdgeInsets.all(16),
         decoration: AppTheme.glassDecoration,
@@ -549,30 +586,30 @@ class _PortfolioImportScreenState extends State<PortfolioImportScreen>
             Container(
               padding: const EdgeInsets.all(10),
               decoration: BoxDecoration(
-                color: color.withOpacity(0.1),
+                color: AppTheme.primaryColor.withOpacity(0.1),
                 borderRadius: BorderRadius.circular(10),
               ),
-              child: Icon(icon, color: color, size: 20),
+              child: const Icon(
+                LucideIcons.plusCircle,
+                color: AppTheme.primaryColor,
+                size: 20,
+              ),
             ),
             const SizedBox(width: 14),
-            Expanded(
+            const Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    title,
-                    style: const TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 14,
-                    ),
+                    'Add Manually',
+                    style: TextStyle(
+                        fontWeight: FontWeight.bold, fontSize: 14),
                   ),
-                  const SizedBox(height: 2),
+                  SizedBox(height: 2),
                   Text(
-                    subtitle,
-                    style: const TextStyle(
-                      color: AppTheme.textSecondary,
-                      fontSize: 12,
-                    ),
+                    'Enter investments one by one',
+                    style: TextStyle(
+                        color: AppTheme.textSecondary, fontSize: 12),
                   ),
                 ],
               ),
@@ -599,7 +636,8 @@ class _PortfolioImportScreenState extends State<PortfolioImportScreen>
       ),
       child: Row(
         children: [
-          const Icon(LucideIcons.alertCircle, color: Colors.red, size: 20),
+          const Icon(LucideIcons.alertCircle,
+              color: Colors.red, size: 20),
           const SizedBox(width: 12),
           Expanded(
             child: Text(
@@ -625,46 +663,24 @@ class _PortfolioImportScreenState extends State<PortfolioImportScreen>
   }
 
   Widget _buildSuccessSummary() {
-    final items = [
-      ('5', 'Holdings'),
-      ('₹4.40L', 'Invested'),
-      ('₹5.16L', 'Current'),
-    ];
-    return Row(
-      children: items
-          .map(
-            (item) => Expanded(
-              child: Container(
-                margin: const EdgeInsets.symmetric(horizontal: 4),
-                padding: const EdgeInsets.symmetric(
-                  vertical: 16,
-                  horizontal: 8,
-                ),
-                decoration: AppTheme.glassDecoration,
-                child: Column(
-                  children: [
-                    Text(
-                      item.$1,
-                      style: const TextStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.bold,
-                        color: AppTheme.primaryColor,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      item.$2,
-                      style: const TextStyle(
-                        color: AppTheme.textSecondary,
-                        fontSize: 11,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: AppTheme.glassDecoration,
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          const Icon(LucideIcons.checkCircle2,
+              color: AppTheme.primaryColor, size: 20),
+          const SizedBox(width: 10),
+          Text(
+            '$_importedCount investment${_importedCount == 1 ? '' : 's'} saved to your portfolio',
+            style: const TextStyle(
+              fontWeight: FontWeight.w600,
+              fontSize: 15,
             ),
-          )
-          .toList(),
+          ),
+        ],
+      ),
     );
   }
 
@@ -700,9 +716,12 @@ class _PortfolioImportScreenState extends State<PortfolioImportScreen>
           color: AppTheme.textSecondary,
         ),
         const SizedBox(width: 6),
-        const Text(
-          'Files are processed securely and never stored on our servers',
-          style: TextStyle(color: AppTheme.textSecondary, fontSize: 11),
+        const Flexible(
+          child: Text(
+            'Files are processed on-device and saved securely to your account',
+            style:
+                TextStyle(color: AppTheme.textSecondary, fontSize: 11),
+          ),
         ),
       ],
     );

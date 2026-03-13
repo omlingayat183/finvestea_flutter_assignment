@@ -2,27 +2,28 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 class AppTheme {
-  // Finvestea Official Colors - Blue Theme
-  static const Color primaryColor = Color(0xFF3FA9FF); // Primary Blue
-  static const Color secondaryAccentColor = Color(0xFF7BD3FF); // Secondary Blue
-  static const Color highlightColor = Color(0xFF4C8DFF); // Highlight Blue
-  static const Color backgroundColorStart = Color(0xFF0A1A2F); // Deep Navy
-  static const Color backgroundColorEnd = Color(0xFF142B4D); // Navy Blue
-  static const Color backgroundColor = Color(0xFF0A1A2F);
-  static const Color surfaceColor = Color(
-    0x19FFFFFF,
-  ); // Glass Card Background (0.1 alpha white)
-  static const Color textPrimary = Color(0xFFFFFFFF); // White
-  static const Color textSecondary = Color(0xFFA7B8D9); // Light Blue-Gray
+  // ─── Premium Color System ──────────────────────────────────────────────────
+  static const Color primaryColor         = Color(0xFF3E8EF7); // Electric blue
+  static const Color secondaryAccentColor = Color(0xFF7BC4FF); // Sky blue
+  static const Color highlightColor       = Color(0xFF5BAAFF); // Blue glow
+  static const Color accentGold           = Color(0xFFF5C242); // Premium gold
+  static const Color accentCyan           = Color(0xFF00C8E8); // Cyan accent
+
+  static const Color backgroundColorStart = Color(0xFF020A14); // Ultra-deep dark
+  static const Color backgroundColorEnd   = Color(0xFF071525); // Deep navy
+  static const Color backgroundColor      = Color(0xFF020A14);
+
+  static const Color surfaceColor         = Color(0x0DFFFFFF); // ~5% white glass
+  static const Color textPrimary          = Color(0xFFEDF2FF); // Cool white
+  static const Color textSecondary        = Color(0xFF6A8BB2); // Steel blue-gray
+  // ────────────────────────────────────────────────────────────────────────────
 
   static ThemeData get darkTheme {
     return ThemeData(
       useMaterial3: true,
       brightness: Brightness.dark,
       primaryColor: primaryColor,
-      scaffoldBackgroundColor:
-          Colors.transparent, // We'll use gradient in Scaffold
-      // Disable all splash / ripple / hover overlay effects app-wide
+      scaffoldBackgroundColor: Colors.transparent,
       splashFactory: NoSplash.splashFactory,
       splashColor: Colors.transparent,
       highlightColor: Colors.transparent,
@@ -43,9 +44,13 @@ class AppTheme {
           foregroundColor: Colors.white,
           minimumSize: const Size(double.infinity, 56),
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(24),
+            borderRadius: BorderRadius.circular(28),
           ),
-          textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+          textStyle: const TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.bold,
+            letterSpacing: 0.5,
+          ),
           elevation: 0,
           splashFactory: NoSplash.splashFactory,
           overlayColor: Colors.transparent,
@@ -65,19 +70,22 @@ class AppTheme {
       ),
       cardTheme: CardThemeData(
         color: surfaceColor,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(24),
+        ),
         margin: EdgeInsets.zero,
+        elevation: 0,
       ),
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
-        fillColor: surfaceColor,
+        fillColor: const Color(0x0AFFFFFF),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(16),
-          borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.1)),
+          borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.08)),
         ),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(16),
-          borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.1)),
+          borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.08)),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(16),
@@ -85,10 +93,12 @@ class AppTheme {
         ),
         labelStyle: const TextStyle(color: textSecondary),
         hintStyle: const TextStyle(color: textSecondary),
+        prefixIconColor: primaryColor,
       ),
     );
   }
 
+  // ─── Background gradient ─────────────────────────────────────────────────
   static BoxDecoration get mainGradient => const BoxDecoration(
     gradient: LinearGradient(
       begin: Alignment.topLeft,
@@ -97,15 +107,60 @@ class AppTheme {
     ),
   );
 
+  // ─── Premium glassmorphism: gradient glass + dual-layer shadow ────────────
   static BoxDecoration get glassDecoration => BoxDecoration(
-    color: surfaceColor,
+    gradient: const LinearGradient(
+      begin: Alignment.topLeft,
+      end: Alignment.bottomRight,
+      colors: [
+        Color(0x11FFFFFF), // ~7% white
+        Color(0x06FFFFFF), // ~2% white
+      ],
+    ),
     borderRadius: BorderRadius.circular(24),
-    border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
+    border: Border.all(
+      color: const Color(0x14FFFFFF), // ~8% white border
+      width: 0.8,
+    ),
     boxShadow: [
       BoxShadow(
-        color: primaryColor.withValues(alpha: 0.1),
-        blurRadius: 20,
-        spreadRadius: 2,
+        color: primaryColor.withValues(alpha: 0.07),
+        blurRadius: 32,
+        offset: const Offset(0, 8),
+      ),
+      BoxShadow(
+        color: Colors.black.withValues(alpha: 0.35),
+        blurRadius: 16,
+        offset: const Offset(0, 4),
+      ),
+    ],
+  );
+
+  // ─── Premium featured card (stronger glow, for hero cards) ───────────────
+  static BoxDecoration get premiumGlassDecoration => BoxDecoration(
+    gradient: const LinearGradient(
+      begin: Alignment.topLeft,
+      end: Alignment.bottomRight,
+      colors: [
+        Color(0x18FFFFFF), // ~9% white
+        Color(0x08FFFFFF), // ~3% white
+      ],
+    ),
+    borderRadius: BorderRadius.circular(28),
+    border: Border.all(
+      color: const Color(0x1AFFFFFF), // ~10% white border
+      width: 1.0,
+    ),
+    boxShadow: [
+      BoxShadow(
+        color: primaryColor.withValues(alpha: 0.14),
+        blurRadius: 48,
+        offset: const Offset(0, 12),
+      ),
+      BoxShadow(
+        color: Colors.black.withValues(alpha: 0.4),
+        blurRadius: 24,
+        offset: const Offset(0, 8),
       ),
     ],
   );
