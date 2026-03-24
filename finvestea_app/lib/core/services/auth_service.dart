@@ -1,38 +1,101 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
-import 'package:firebase_auth/firebase_auth.dart';
+
+// ─── AuthUser ──────────────────────────────────────────────────────────────────
+
+class AuthUser {
+  final String uid;
+  final String email;
+  final String? displayName;
+
+  const AuthUser({required this.uid, required this.email, this.displayName});
+}
+
+// ─── AuthException ─────────────────────────────────────────────────────────────
+
+class AuthException implements Exception {
+  final String code;
+  final String? message;
+
+  const AuthException({required this.code, this.message});
+
+  @override
+  String toString() => message ?? code;
+}
+
+// ─── AuthService ───────────────────────────────────────────────────────────────
+// Fully local, no network calls. Accepts any valid-looking credentials.
 
 class AuthService {
-  final FirebaseAuth _auth = FirebaseAuth.instance;
+  static final AuthService _instance = AuthService._internal();
+  factory AuthService() => _instance;
+  AuthService._internal();
 
-  Stream<User?> get authStateChanges => _auth.authStateChanges();
-  User? get currentUser => _auth.currentUser;
+  AuthUser? _currentUser;
+  final _controller = StreamController<AuthUser?>.broadcast();
+
+  AuthUser? get currentUser => _currentUser;
+  Stream<AuthUser?> get authStateChanges => _controller.stream;
 
   // ─────────────────────────────────────────
   // Email / Password
   // ─────────────────────────────────────────
 
-  Future<UserCredential> signInWithEmail({
+  Future<AuthUser> signInWithEmail({
     required String email,
     required String password,
   }) async {
-    return await _auth.signInWithEmailAndPassword(
+    await Future.delayed(const Duration(milliseconds: 600));
+    if (!email.contains('@')) {
+      throw const AuthException(
+        code: 'invalid-email',
+        message: 'Please enter a valid email address.',
+      );
+    }
+    if (password.isEmpty) {
+      throw const AuthException(
+        code: 'wrong-password',
+        message: 'Incorrect password. Please try again.',
+      );
+    }
+    _currentUser = AuthUser(
+      uid: 'local_${email.replaceAll(RegExp(r'[^a-zA-Z0-9]'), '_')}',
       email: email,
-      password: password,
+      displayName: email.split('@').first,
     );
+    _controller.add(_currentUser);
+    return _currentUser!;
   }
 
-  Future<UserCredential> signUpWithEmail({
+  Future<AuthUser> signUpWithEmail({
     required String email,
     required String password,
   }) async {
-    return await _auth.createUserWithEmailAndPassword(
+    await Future.delayed(const Duration(milliseconds: 600));
+    if (!email.contains('@')) {
+      throw const AuthException(
+        code: 'invalid-email',
+        message: 'Please enter a valid email address.',
+      );
+    }
+    if (password.length < 6) {
+      throw const AuthException(
+        code: 'weak-password',
+        message: 'Password must be at least 6 characters.',
+      );
+    }
+    _currentUser = AuthUser(
+      uid: 'local_${DateTime.now().millisecondsSinceEpoch}',
       email: email,
-      password: password,
+      displayName: email.split('@').first,
     );
+    _controller.add(_currentUser);
+    return _currentUser!;
   }
 
   Future<void> sendPasswordReset(String email) async {
-    await _auth.sendPasswordResetEmail(email: email);
+    await Future.delayed(const Duration(milliseconds: 500));
+    // Local mode: no-op (snackbar in UI says "email sent")
   }
 
   // ─────────────────────────────────────────
@@ -42,55 +105,40 @@ class AuthService {
   Future<void> sendOTP({
     required String phoneNumber,
     required Function(String verificationId) onCodeSent,
-    required Function(FirebaseAuthException e) onError,
+    required Function(AuthException e) onError,
     VoidCallback? onAutoVerified,
   }) async {
-    try {
-      await _auth.verifyPhoneNumber(
-        phoneNumber: '+91$phoneNumber',
-        verificationCompleted: (PhoneAuthCredential credential) async {
-          await _auth.signInWithCredential(credential);
-          onAutoVerified?.call();
-        },
-        verificationFailed: (FirebaseAuthException e) {
-          onError(e);
-        },
-        codeSent: (String verificationId, int? resendToken) {
-          onCodeSent(verificationId);
-        },
-        codeAutoRetrievalTimeout: (String verificationId) {},
-        timeout: const Duration(seconds: 60),
-      );
-    } catch (e) {
-      onError(FirebaseAuthException(
-        code: 'unknown_error',
-        message: 'Failed to send OTP: ${e.toString()}',
-      ));
-    }
+    await Future.delayed(const Duration(milliseconds: 800));
+    // Mock verification ID encodes the phone number for use in verifyOTP
+    onCodeSent('mock_otp_$phoneNumber');
   }
 
-  Future<UserCredential?> verifyOTP({
+  Future<AuthUser?> verifyOTP({
     required String verificationId,
     required String smsCode,
   }) async {
-    try {
-      final credential = PhoneAuthProvider.credential(
-        verificationId: verificationId,
-        smsCode: smsCode,
-      );
-      return await _auth.signInWithCredential(credential);
-    } catch (e) {
-      throw FirebaseAuthException(
-        code: 'invalid_verification_code',
-        message: 'Invalid OTP. Please try again.',
+    await Future.delayed(const Duration(milliseconds: 600));
+    // Accept any 6-digit code
+    if (smsCode.length != 6) {
+      throw const AuthException(
+        code: 'invalid-verification-code',
+        message: 'Invalid OTP. Please check and try again.',
       );
     }
+    final phone = verificationId.replaceFirst('mock_otp_', '');
+    _currentUser = AuthUser(
+      uid: 'local_phone_$phone',
+      email: '$phone@phone.local',
+      displayName: phone,
+    );
+    _controller.add(_currentUser);
+    return _currentUser;
   }
 
   Future<void> resendOTP({
     required String phoneNumber,
     required Function(String verificationId) onCodeSent,
-    required Function(FirebaseAuthException e) onError,
+    required Function(AuthException e) onError,
     VoidCallback? onAutoVerified,
   }) async {
     await sendOTP(
@@ -106,12 +154,12 @@ class AuthService {
   // ─────────────────────────────────────────
 
   Future<void> signOut() async {
-    await _auth.signOut();
+    _currentUser = null;
+    _controller.add(null);
   }
 
-  String getErrorMessage(FirebaseAuthException e) {
+  String getErrorMessage(AuthException e) {
     switch (e.code) {
-      // Phone
       case 'invalid-phone-number':
         return 'Invalid phone number format.';
       case 'too-many-requests':
@@ -120,11 +168,6 @@ class AuthService {
         return 'Invalid OTP. Please check and try again.';
       case 'code-expired':
         return 'OTP has expired. Please request a new one.';
-      case 'missing-client-identifier':
-        return 'Device verification failed. Try on a physical device.';
-      case 'quota-exceeded':
-        return 'SMS quota exceeded. Try a Firebase test number.';
-      // Email
       case 'user-not-found':
         return 'No account found with this email.';
       case 'wrong-password':
@@ -139,9 +182,6 @@ class AuthService {
         return 'Password must be at least 6 characters.';
       case 'user-disabled':
         return 'This account has been disabled.';
-      // Common
-      case 'network-request-failed':
-        return 'Network error. Please check your connection.';
       default:
         return e.message ?? 'An error occurred. Please try again.';
     }

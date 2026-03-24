@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lucide_icons/lucide_icons.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import '../../../core/theme.dart';
 import '../../../core/services/auth_service.dart';
 
@@ -114,7 +113,7 @@ class _OtpScreenState extends State<OtpScreen> {
       if (!mounted) return;
       setState(() {
         _isLoading = false;
-        if (e is FirebaseAuthException) {
+        if (e is AuthException) {
           _errorMessage = _authService.getErrorMessage(e);
         } else {
           _errorMessage = 'Verification failed. Please try again.';
@@ -139,7 +138,7 @@ class _OtpScreenState extends State<OtpScreen> {
         if (!mounted) return;
         setState(() => _verificationId = verificationId);
       },
-      onError: (FirebaseAuthException e) {
+      onError: (AuthException e) {
         if (!mounted) return;
         setState(() => _errorMessage = _authService.getErrorMessage(e));
       },

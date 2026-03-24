@@ -1,15 +1,12 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
+import 'dart:async';
 import '../../features/dashboard/services/portfolio_document_parser.dart';
 
 // ─── Holding ──────────────────────────────────────────────────────────────────
-// Mirrors the Holding @table in the Firebase schema.
-// Firestore path: users/{uid}/holdings/{holdingId}
 
 class Holding {
   final String name;
-  final double quantity;     // units
-  final double costBasis;    // amount invested
+  final double quantity;
+  final double costBasis;
   final double currentValue;
   final DateTime purchaseDate;
   final String assetType;
@@ -41,9 +38,9 @@ class Holding {
         'quantity': quantity,
         'costBasis': costBasis,
         'currentValue': currentValue,
-        'purchaseDate': Timestamp.fromDate(purchaseDate),
+        'purchaseDate': purchaseDate.toIso8601String(),
         'assetType': assetType,
-        'createdAt': FieldValue.serverTimestamp(),
+        'createdAt': createdAt.toIso8601String(),
         'portfolioId': portfolioId,
         'tickerSymbol': tickerSymbol ?? '',
         'notes': notes ?? '',
@@ -55,23 +52,21 @@ class Holding {
         costBasis: (d['costBasis'] ?? 0).toDouble(),
         currentValue: (d['currentValue'] ?? 0).toDouble(),
         purchaseDate: d['purchaseDate'] != null
-            ? (d['purchaseDate'] as Timestamp).toDate()
+            ? DateTime.tryParse(d['purchaseDate']) ?? DateTime.now()
             : DateTime.now(),
         assetType: d['assetType'] ?? 'Other',
         createdAt: d['createdAt'] != null
-            ? (d['createdAt'] as Timestamp).toDate()
+            ? DateTime.tryParse(d['createdAt']) ?? DateTime.now()
             : DateTime.now(),
         portfolioId: d['portfolioId'] ?? '',
         tickerSymbol: d['tickerSymbol']?.toString().isEmpty == true
             ? null
             : d['tickerSymbol'],
-        notes:
-            d['notes']?.toString().isEmpty == true ? null : d['notes'],
+        notes: d['notes']?.toString().isEmpty == true ? null : d['notes'],
       );
 }
 
 // ─── HoldingEntry ─────────────────────────────────────────────────────────────
-// Holding + its Firestore document ID. Used by UI layers.
 
 class HoldingEntry {
   final String id;
@@ -81,7 +76,6 @@ class HoldingEntry {
 
   String get notes => holding.notes ?? '';
 
-  // Convenience accessor keeps existing UI code working unchanged.
   PortfolioInvestment get investment => PortfolioInvestment(
         name: holding.name,
         type: holding.assetType,
@@ -93,12 +87,10 @@ class HoldingEntry {
       );
 }
 
-// Backward-compat alias — existing screens use PortfolioEntry.
+// Backward-compat alias
 typedef PortfolioEntry = HoldingEntry;
 
 // ─── Portfolio ────────────────────────────────────────────────────────────────
-// Mirrors the Portfolio @table in the Firebase schema.
-// Firestore path: users/{uid}/portfolios/{portfolioId}
 
 class Portfolio {
   final String id;
@@ -114,19 +106,6 @@ class Portfolio {
     required this.createdAt,
     this.description,
   });
-
-  factory Portfolio.fromDoc(DocumentSnapshot doc) {
-    final d = doc.data() as Map<String, dynamic>;
-    return Portfolio(
-      id: doc.id,
-      name: d['name'] ?? 'My Portfolio',
-      currency: d['currency'] ?? 'INR',
-      createdAt: d['createdAt'] != null
-          ? (d['createdAt'] as Timestamp).toDate()
-          : DateTime.now(),
-      description: d['description'],
-    );
-  }
 }
 
 // ─── PortfolioMetrics ─────────────────────────────────────────────────────────
@@ -149,98 +128,86 @@ class PortfolioMetrics {
 }
 
 // ─── PortfolioService ─────────────────────────────────────────────────────────
+// Fully in-memory. All data lives in the app session only.
 
 class PortfolioService {
-  final _db = FirebaseFirestore.instance;
-  final _auth = FirebaseAuth.instance;
+  static final PortfolioService _instance = PortfolioService._internal();
+  factory PortfolioService() => _instance;
+  PortfolioService._internal();
 
-  String? get _uid => _auth.currentUser?.uid;
+  final List<HoldingEntry> _holdings = [];
+  int _idCounter = 0;
+  final StreamController<List<HoldingEntry>> _holdingsController =
+      StreamController<List<HoldingEntry>>.broadcast();
 
-  CollectionReference _portfoliosRef() =>
-      _db.collection('users').doc(_uid).collection('portfolios');
+  void _emit() =>
+      _holdingsController.add(List.unmodifiable(_holdings));
 
-  CollectionReference _holdingsRef() =>
-      _db.collection('users').doc(_uid).collection('holdings');
-
-  CollectionReference _uploadsRef() =>
-      _db.collection('users').doc(_uid).collection('uploads');
+  String _nextId() => 'holding_${++_idCounter}';
 
   // ── Portfolio operations ────────────────────────────────────────────────────
 
-  Stream<List<Portfolio>> portfoliosStream() {
-    if (_uid == null) return Stream.value([]);
-    return _portfoliosRef()
-        .orderBy('createdAt')
-        .snapshots()
-        .map((s) => s.docs.map((d) => Portfolio.fromDoc(d)).toList());
-  }
+  Stream<List<Portfolio>> portfoliosStream() => Stream.value([
+        Portfolio(
+          id: 'default_portfolio',
+          name: 'My Portfolio',
+          currency: 'INR',
+          createdAt: DateTime(2024),
+        ),
+      ]);
 
   Future<String> createPortfolio(
     String name, {
     String currency = 'INR',
     String? description,
   }) async {
-    if (_uid == null) throw Exception('Not authenticated.');
-    final ref = await _portfoliosRef().add({
-      'name': name,
-      'currency': currency,
-      'createdAt': FieldValue.serverTimestamp(),
-      'description': description ?? '',
-    });
-    return ref.id;
+    return 'default_portfolio';
   }
 
-  /// Returns the default portfolio ID, creating one if none exists.
   Future<String> getOrCreateDefaultPortfolioId() async {
-    if (_uid == null) throw Exception('Not authenticated.');
-    final snap = await _portfoliosRef().limit(1).get();
-    if (snap.docs.isNotEmpty) return snap.docs.first.id;
-    return createPortfolio('My Portfolio');
+    return 'default_portfolio';
   }
 
   // ── Holding operations ──────────────────────────────────────────────────────
 
-  /// Stream ALL holdings for this user — used by dashboard & reports.
-  Stream<List<HoldingEntry>> portfolioStream() {
-    if (_uid == null) return Stream.value([]);
-    return _holdingsRef()
-        .orderBy('createdAt')
-        .snapshots()
-        .map((snap) => snap.docs
-            .map((doc) => HoldingEntry(
-                  id: doc.id,
-                  holding: Holding.fromMap(
-                      doc.data() as Map<String, dynamic>),
-                ))
-            .toList());
+  /// Stream all holdings — emits current list immediately then on every change.
+  Stream<List<HoldingEntry>> portfolioStream() async* {
+    yield List.unmodifiable(_holdings);
+    await for (final list in _holdingsController.stream) {
+      yield list;
+    }
   }
 
   /// Stream holdings for a specific portfolio.
-  Stream<List<HoldingEntry>> holdingsStream(String portfolioId) {
-    if (_uid == null) return Stream.value([]);
-    return _holdingsRef()
-        .where('portfolioId', isEqualTo: portfolioId)
-        .orderBy('createdAt')
-        .snapshots()
-        .map((snap) => snap.docs
-            .map((doc) => HoldingEntry(
-                  id: doc.id,
-                  holding: Holding.fromMap(
-                      doc.data() as Map<String, dynamic>),
-                ))
-            .toList());
+  Stream<List<HoldingEntry>> holdingsStream(String portfolioId) async* {
+    yield _holdings
+        .where((e) => e.holding.portfolioId == portfolioId)
+        .toList();
+    await for (final list in _holdingsController.stream) {
+      yield list
+          .where((e) => e.holding.portfolioId == portfolioId)
+          .toList();
+    }
   }
 
   Future<void> addItem(
     PortfolioInvestment item, {
     String notes = '',
   }) async {
-    if (_uid == null) {
-      throw Exception(
-          'Not authenticated. Please log in and try again.');
-    }
-    final portfolioId = await getOrCreateDefaultPortfolioId();
-    await _holdingsRef().add(_investmentToMap(item, portfolioId, notes: notes));
+    await Future.delayed(const Duration(milliseconds: 300));
+    final holding = Holding(
+      name: item.name,
+      quantity: item.units,
+      costBasis: item.amountInvested,
+      currentValue: item.currentValue,
+      purchaseDate: item.dateOfInvestment,
+      assetType: item.type,
+      createdAt: DateTime.now(),
+      portfolioId: 'default_portfolio',
+      notes: notes.isEmpty ? null : notes,
+    );
+    _holdings.add(HoldingEntry(id: _nextId(), holding: holding));
+    _emit();
   }
 
   Future<void> updateItem(
@@ -248,77 +215,59 @@ class PortfolioService {
     PortfolioInvestment item, {
     String notes = '',
   }) async {
-    if (_uid == null) throw Exception('Not authenticated.');
-    await _holdingsRef().doc(docId).update({
-      'name': item.name,
-      'assetType': item.type,
-      'costBasis': item.amountInvested,
-      'currentValue': item.currentValue,
-      'quantity': item.units,
-      'purchaseDate': Timestamp.fromDate(item.dateOfInvestment),
-      'notes': notes,
-    });
+    await Future.delayed(const Duration(milliseconds: 300));
+    final index = _holdings.indexWhere((e) => e.id == docId);
+    if (index == -1) return;
+    final old = _holdings[index].holding;
+    final updated = Holding(
+      name: item.name,
+      quantity: item.units,
+      costBasis: item.amountInvested,
+      currentValue: item.currentValue,
+      purchaseDate: item.dateOfInvestment,
+      assetType: item.type,
+      createdAt: old.createdAt,
+      portfolioId: old.portfolioId,
+      notes: notes.isEmpty ? null : notes,
+    );
+    _holdings[index] = HoldingEntry(id: docId, holding: updated);
+    _emit();
   }
 
   Future<void> deleteItem(String docId) async {
-    if (_uid == null) throw Exception('Not authenticated.');
-    await _holdingsRef().doc(docId).delete();
+    await Future.delayed(const Duration(milliseconds: 200));
+    _holdings.removeWhere((e) => e.id == docId);
+    _emit();
   }
 
   /// Bulk-saves a list of PortfolioInvestment (from file import).
   Future<int> addBulk(List<PortfolioInvestment> items) async {
-    if (_uid == null) {
-      throw Exception(
-          'Not authenticated. Please log in and try again.');
-    }
-    if (items.isEmpty) return 0;
-    final portfolioId = await getOrCreateDefaultPortfolioId();
-    final batch = _db.batch();
-    int count = 0;
+    await Future.delayed(const Duration(milliseconds: 500));
     for (final item in items) {
-      final ref = _holdingsRef().doc();
-      batch.set(ref, _investmentToMap(item, portfolioId));
-      count++;
+      final holding = Holding(
+        name: item.name,
+        quantity: item.units,
+        costBasis: item.amountInvested,
+        currentValue: item.currentValue,
+        purchaseDate: item.dateOfInvestment,
+        assetType: item.type,
+        createdAt: DateTime.now(),
+        portfolioId: 'default_portfolio',
+      );
+      _holdings.add(HoldingEntry(id: _nextId(), holding: holding));
     }
-    await batch.commit();
-    return count;
+    _emit();
+    return items.length;
   }
 
-  /// Converts a PortfolioInvestment to a Firestore-ready Holding map.
-  Map<String, dynamic> _investmentToMap(
-    PortfolioInvestment item,
-    String portfolioId, {
-    String notes = '',
-  }) =>
-      {
-        'name': item.name,
-        'quantity': item.units,
-        'costBasis': item.amountInvested,
-        'currentValue': item.currentValue,
-        'purchaseDate': Timestamp.fromDate(item.dateOfInvestment),
-        'assetType': item.type,
-        'createdAt': FieldValue.serverTimestamp(),
-        'portfolioId': portfolioId,
-        'tickerSymbol': '',
-        'notes': notes,
-      };
-
-  // ── Upload tracking ─────────────────────────────────────────────────────────
-
+  /// No-op upload tracking (kept for API compatibility).
   Future<void> recordUpload({
     required String filename,
     required String fileType,
     required String status,
     String? processingLog,
   }) async {
-    if (_uid == null) return;
-    await _uploadsRef().add({
-      'filename': filename,
-      'fileType': fileType,
-      'uploadDate': FieldValue.serverTimestamp(),
-      'status': status,
-      'processingLog': processingLog ?? '',
-    });
+    // Local mode: nothing to record externally
   }
 
   // ── Metrics ─────────────────────────────────────────────────────────────────

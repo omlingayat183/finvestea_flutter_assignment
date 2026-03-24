@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:go_router/go_router.dart';
+import '../core/services/auth_service.dart';
 import '../features/onboarding/presentation/splash_screen.dart';
 import '../features/onboarding/presentation/welcome_screen.dart';
 import '../features/onboarding/presentation/login_screen.dart';
@@ -71,18 +71,21 @@ GoRouter createRouter(ChangeNotifier authNotifier) {
     initialLocation: '/splash',
     refreshListenable: authNotifier,
     redirect: (context, state) {
-      final isAuthenticated = FirebaseAuth.instance.currentUser != null;
+      final isAuthenticated = AuthService().currentUser != null;
       final location = state.matchedLocation;
 
       // Always let the splash screen run its own timer-based navigation.
       if (location == '/splash') return null;
 
       // Authenticated user on auth screens → send to dashboard.
-      final isAuthScreen = {'/welcome', '/login', '/register', '/otp'}.contains(location);
+      final isAuthScreen =
+          {'/welcome', '/login', '/register', '/otp'}.contains(location);
       if (isAuthenticated && isAuthScreen) return '/dashboard';
 
       // Unauthenticated user on a protected screen → send to welcome.
-      if (!isAuthenticated && _protectedRoutes.contains(location)) return '/welcome';
+      if (!isAuthenticated && _protectedRoutes.contains(location)) {
+        return '/welcome';
+      }
 
       return null;
     },
@@ -96,7 +99,9 @@ GoRouter createRouter(ChangeNotifier authNotifier) {
         builder: (context, state) => const WelcomeScreen(),
       ),
       GoRoute(path: '/login', builder: (context, state) => const LoginScreen()),
-      GoRoute(path: '/register', builder: (context, state) => const RegisterScreen()),
+      GoRoute(
+          path: '/register',
+          builder: (context, state) => const RegisterScreen()),
       GoRoute(path: '/otp', builder: (context, state) => const OtpScreen()),
       GoRoute(
         path: '/basic-info',

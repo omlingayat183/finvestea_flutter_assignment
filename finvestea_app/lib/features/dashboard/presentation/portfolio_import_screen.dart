@@ -1,13 +1,10 @@
 // portfolio_import_screen.dart
 //
-// Complete portfolio upload flow:
+// Local portfolio upload flow:
 //   1. Pick file (CSV / XLS / XLSX)
 //   2. Validate file type & size
-//   3. Upload to Supabase Storage bucket "portfolios"
-//   4. Insert metadata into Supabase table "portfolios"
-//   5. Parse holdings → save to Firestore (existing logic)
-//   6. Record upload in Firebase uploads collection
-//   7. Trigger AI analysis (stub)
+//   3. Parse holdings from file
+//   4. Save holdings to local portfolio store
 
 import 'dart:async';
 import 'package:flutter/material.dart';
@@ -17,7 +14,6 @@ import 'package:file_picker/file_picker.dart';
 import 'package:excel/excel.dart' as xl;
 import '../../../core/theme.dart';
 import '../../../core/services/portfolio_service.dart';
-import '../../../core/services/supabase_portfolio_service.dart';
 import '../services/portfolio_document_parser.dart';
 
 class PortfolioImportScreen extends StatefulWidget {
@@ -47,7 +43,6 @@ class _PortfolioImportScreenState extends State<PortfolioImportScreen>
 
   // Services
   final _portfolioService = PortfolioService();
-  final _supabaseService = SupabasePortfolioService.instance;
 
   // ── Lifecycle ──────────────────────────────────────────────────────────────
 
@@ -203,69 +198,45 @@ class _PortfolioImportScreenState extends State<PortfolioImportScreen>
   Future<void> _pickAndUpload() async {
     // ── Step 1: pick ─────────────────────────────────────────────────────────
     final file = await _pickFile();
-    if (file == null) return; // cancelled or picker error (error already set)
+    if (file == null) return;
 
     // ── Step 2: validate ─────────────────────────────────────────────────────
     final ext = _validateFile(file);
-    if (ext == null) return; // validation error already set
+    if (ext == null) return;
 
     final fileName = file.name;
-    final bytes    = file.bytes!; // guaranteed non-null after validateFile
+    final bytes    = file.bytes!;
 
-    // Show loading UI
     setState(() {
       _selectedFileName = fileName;
       _phase            = _UploadPhase.uploading;
       _progress         = 0;
       _errorMessage     = null;
     });
-    _startProgressAnimation(targetFraction: 0.70);
+    _startProgressAnimation(targetFraction: 0.50);
 
-    // ── Step 3: upload file + insert DB ──────────────────────────────────────
-    UploadResult uploadResult;
-    try {
-      debugPrint('[_pickAndUpload] ▶ uploadPortfolio()');
-      uploadResult = await _supabaseService.uploadPortfolio(
-        fileName: fileName,
-        bytes: bytes,
-        fileExtension: ext,
-      );
-      debugPrint('[_pickAndUpload] ✅ uploadPortfolio() — id: ${uploadResult.id}');
-      _advanceProgress(to: 0.78);
-    } on PortfolioUploadException catch (e) {
-      debugPrint('[_pickAndUpload] ❌ uploadPortfolio() threw: ${e.message}');
-      _setError(e.message); // real message from service (never generic)
-      return;
-    } catch (e, stack) {
-      debugPrint('[_pickAndUpload] ❌ uploadPortfolio() unexpected: $e\n$stack');
-      _setError('[Unexpected upload error] $e');
-      return;
-    }
-
-    // ── Step 4: parse holdings ────────────────────────────────────────────────
+    // ── Step 3: parse holdings ────────────────────────────────────────────────
     List<PortfolioInvestment> investments;
     try {
-      debugPrint('[_pickAndUpload] ▶ parsing file ($ext)');
       if (ext == 'csv') {
         investments =
             PortfolioDocumentParser.parseCsv(String.fromCharCodes(bytes));
       } else {
-        final decoded    = xl.Excel.decodeBytes(bytes);
-        final sheetName  = decoded.tables.keys.first;
-        final rows       = decoded.tables[sheetName]!
+        final decoded   = xl.Excel.decodeBytes(bytes);
+        final sheetName = decoded.tables.keys.first;
+        final rows      = decoded.tables[sheetName]!
             .rows
             .map((r) => r.map((c) => c?.value).toList())
             .toList();
         investments = PortfolioDocumentParser.parseExcelRows(rows);
       }
-      debugPrint('[_pickAndUpload] parsed ${investments.length} investments');
     } catch (e, stack) {
       debugPrint('[_pickAndUpload] ❌ parse error: $e\n$stack');
       _setError('[Parse error] Could not read file contents: $e');
       return;
     }
 
-    _advanceProgress(to: 0.85);
+    _advanceProgress(to: 0.75);
 
     if (investments.isEmpty) {
       _setError(
@@ -275,53 +246,17 @@ class _PortfolioImportScreenState extends State<PortfolioImportScreen>
       return;
     }
 
-    // ── Step 5: AI analysis stub ──────────────────────────────────────────────
     _setPhase(_UploadPhase.analyzing);
-    try {
-      await _supabaseService.triggerAiAnalysis(uploadResult.fileUrl);
-    } catch (e, stack) {
-      // AI is non-critical — log but do NOT abort
-      debugPrint('[_pickAndUpload] ⚠ triggerAiAnalysis error (ignored): $e\n$stack');
-    }
-    _advanceProgress(to: 0.90);
+    _advanceProgress(to: 0.85);
 
-    // ── Step 6: save holdings to Firestore ────────────────────────────────────
+    // ── Step 4: save holdings to local store ─────────────────────────────────
     int count;
     try {
-      debugPrint('[_pickAndUpload] ▶ addBulk()');
       count = await _portfolioService.addBulk(investments);
-      debugPrint('[_pickAndUpload] ✅ addBulk() saved $count holdings');
     } catch (e, stack) {
       debugPrint('[_pickAndUpload] ❌ addBulk() error: $e\n$stack');
-      final raw = e.toString();
-      if (raw.contains('permission-denied') ||
-          raw.contains('PERMISSION_DENIED')) {
-        _setError(
-          '[Firestore error] Permission denied.\n'
-          'Fix: Firebase Console → Firestore → Rules → allow authenticated users.',
-        );
-      } else {
-        _setError('[Firestore error] Could not save holdings: $e');
-      }
+      _setError('Could not save holdings: $e');
       return;
-    }
-
-    _advanceProgress(to: 0.97);
-
-    // ── Step 7: record upload metadata in Firebase ────────────────────────────
-    try {
-      debugPrint('[_pickAndUpload] ▶ recordUpload()');
-      await _portfolioService.recordUpload(
-        filename: fileName,
-        fileType: ext,
-        status: 'success',
-        processingLog:
-            '$count holdings imported · Supabase id: ${uploadResult.id}',
-      );
-      debugPrint('[_pickAndUpload] ✅ recordUpload() done');
-    } catch (e, stack) {
-      // recordUpload failure is non-critical — log but do NOT abort
-      debugPrint('[_pickAndUpload] ⚠ recordUpload error (ignored): $e\n$stack');
     }
 
     _progressTimer?.cancel();

@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lucide_icons/lucide_icons.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import '../../../core/theme.dart';
 import '../../../core/services/auth_service.dart';
 
@@ -62,7 +61,7 @@ class _LoginScreenState extends State<LoginScreen> {
           'phoneNumber': phone,
         });
       },
-      onError: (FirebaseAuthException e) {
+      onError: (AuthException e) {
         if (!mounted) return;
         setState(() {
           _isLoading = false;
@@ -98,7 +97,7 @@ class _LoginScreenState extends State<LoginScreen> {
     try {
       await _authService.signInWithEmail(email: email, password: password);
       // authStateChanges in main.dart handles navigation to /dashboard
-    } on FirebaseAuthException catch (e) {
+    } on AuthException catch (e) {
       if (!mounted) return;
       setState(() {
         _isLoading = false;
@@ -130,7 +129,7 @@ class _LoginScreenState extends State<LoginScreen> {
       if (!mounted) return;
       setState(() => _isLoading = false);
       _showSnackBar('Password reset email sent to $email');
-    } on FirebaseAuthException catch (e) {
+    } on AuthException catch (e) {
       if (!mounted) return;
       setState(() {
         _isLoading = false;

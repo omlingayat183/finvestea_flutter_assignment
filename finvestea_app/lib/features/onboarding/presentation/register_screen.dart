@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lucide_icons/lucide_icons.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import '../../../core/theme.dart';
 import '../../../core/services/auth_service.dart';
 
@@ -58,7 +57,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
     try {
       await _authService.signUpWithEmail(email: email, password: password);
       // authStateChanges stream in main.dart handles redirect to /dashboard
-    } on FirebaseAuthException catch (e) {
+    } on AuthException catch (e) {
       if (!mounted) return;
       setState(() {
         _isLoading = false;

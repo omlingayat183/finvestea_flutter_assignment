@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import 'package:go_router/go_router.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import '../../../core/theme.dart';
+import '../../../core/services/auth_service.dart';
 import '../../../core/widgets/app_scaffold.dart';
 import '../../../core/services/portfolio_service.dart';
 
@@ -17,11 +17,11 @@ class DashboardScreen extends StatelessWidget {
   }
 
   String _displayName() {
-    final user = FirebaseAuth.instance.currentUser;
+    final user = AuthService().currentUser;
     if (user?.displayName != null && user!.displayName!.isNotEmpty) {
       return user.displayName!.split(' ').first;
     }
-    if (user?.email != null) return user!.email!.split('@').first;
+    if (user?.email != null) return user!.email.split('@').first;
     return 'User';
   }
 
