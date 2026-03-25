@@ -1,3 +1,181 @@
+# 📊 Finvestea Portfolio Analysis App
+
+A Flutter-based investment portfolio analysis application built as part of the **Akeshya Pvt Ltd Flutter Developer Assignment**.
+
+This app allows users to authenticate, upload their investment portfolio (CSV/XLSX), and visualize insights through dynamic charts and analytics.
+
+---
+
+## 🚀 Features
+
+### 🔐 Authentication
+
+* User Registration (Sign Up)
+* User Login (Email/Password & Phone OTP)
+* Persistent Session Management
+* Logout functionality
+
+### 📂 Portfolio Upload
+
+* Upload portfolio via:
+
+  * CSV files
+  * Excel (.xlsx) files
+* File parsing and validation
+* Error handling for invalid formats
+
+### 📊 Dynamic Data Visualization
+
+* Pie Chart → Asset Allocation
+* Bar Chart → Returns / Performance
+* Interactive charts using `fl_chart`
+
+### 📈 Portfolio Analysis
+
+* Total Investment Value
+* Current Portfolio Value
+* Profit / Loss Calculation
+* CAGR (Compound Annual Growth Rate)
+* Risk Profile (Aggressive / Moderate / Conservative)
+* Asset Allocation Breakdown
+
+### 🤖 Insights
+
+* Strengths and Weaknesses of portfolio
+* Rule-based analysis for better understanding
+
+---
+
+## 🛠 Tech Stack
+
+* **Flutter** – Frontend framework
+* **Firebase** – Authentication & backend
+* **Cloud Firestore** – User data storage
+* **fl_chart** – Charts & visualization
+* **file_picker** – File selection
+* **excel / csv** – File parsing
+
+---
+
+## 📂 Project Structure
+
+```
+lib/
+ ├── core/
+ │   ├── models/
+ │   ├── services/
+ │   └── theme/
+ │
+ ├── features/
+ │   ├── auth/
+ │   ├── dashboard/
+ │   ├── portfolio/
+ │   └── onboarding/
+ │
+ ├── firebase_options.dart
+ └── main.dart
+```
+
+---
+
+## ⚙️ Setup Instructions
+
+### 1. Clone the repository
+
+```
+git clone https://github.com/your-username/finvestea_flutter_assignment.git
+cd finvestea_flutter_assignment
+```
+
+### 2. Install dependencies
+
+```
+flutter pub get
+```
+
+### 3. Firebase Setup
+
+* Create a Firebase project
+* Add Android app (`com.example.finvestea_app`)
+* Download `google-services.json`
+* Place it in:
+
+```
+android/app/google-services.json
+```
+
+* Enable:
+
+  * Email/Password Authentication
+  * Phone Authentication
+
+### 4. Run the app
+
+```
+flutter run
+```
+
+---
+
+## 📊 Portfolio Upload Format
+
+The uploaded CSV/XLSX file should contain the following columns:
+
+* Investment Name
+* Type (Equity, Debt, FD, etc.)
+* Amount Invested
+* Current Value
+* Units (optional)
+* Date (optional)
+* Returns (optional)
+
+---
+
+## 🧠 Assumptions
+
+* Portfolio file follows a structured format
+* Risk profile is calculated based on asset allocation
+* CAGR is calculated using earliest investment date
+* Missing values are handled with default logic
+
+---
+
+## ⚠️ Limitations
+
+* No real-time stock market API integration
+* Basic rule-based insights (not AI-driven)
+* Limited validation for custom file formats
+
+---
+
+
+## 🎥 Demo Video (Optional)
+
+*https://drive.google.com/drive/folders/1HzOOWG2V___afZ98WrZxGcxK4sVoR5OT?usp=sharing*
+
+---
+
+## 📌 Notes
+
+This project was developed as part of a technical assignment for **Akeshya Pvt Ltd**.
+
+Focus areas:
+
+* Clean architecture
+* Real-world data handling
+* UI consistency
+* Error handling
+
+---
+
+## 👨‍💻 Author
+
+**Om Lingayat**
+Flutter Developer
+
+---
+
+
 # Finvestea
 
 A full-featured personal finance and investment management app built with Flutter. Finvestea covers the entire investor journey — from KYC onboarding and portfolio tracking to mutual fund investments, financial calculators, loan discovery, and investment education.
