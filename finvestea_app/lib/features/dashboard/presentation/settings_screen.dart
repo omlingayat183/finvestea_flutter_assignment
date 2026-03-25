@@ -1,3 +1,4 @@
+import 'package:finvestea_app/core/services/auth_service.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lucide_icons/lucide_icons.dart';
@@ -188,9 +189,17 @@ class _SettingsScreenState extends State<SettingsScreen> {
                                   style: ElevatedButton.styleFrom(
                                     backgroundColor: Colors.redAccent,
                                   ),
-                                  onPressed: () {
+                                  // onPressed: () {
+                                  //   Navigator.of(ctx).pop();
+                                  //   context.go('/welcome');
+                                  // },
+
+                                  onPressed: () async {
                                     Navigator.of(ctx).pop();
-                                    context.go('/welcome');
+                                    await AuthService().signOut();
+                                    if (context.mounted) {
+                                      context.go('/welcome');
+                                    }
                                   },
                                   child: const Text('Log Out'),
                                 ),

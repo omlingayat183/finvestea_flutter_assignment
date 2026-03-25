@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:firebase_core/firebase_core.dart';
 import 'core/theme.dart';
 import 'core/router.dart';
 import 'core/services/auth_service.dart';
+import 'firebase_options.dart';
 
 // Notifies GoRouter whenever local auth state changes so the redirect
 // function re-runs without recreating the whole router.
@@ -12,8 +14,15 @@ class _AuthNotifier extends ChangeNotifier {
   }
 }
 
-void main() {
+void main() async{
   WidgetsFlutterBinding.ensureInitialized();
+
+    // Initialise Firebase using the options generated from google-services.json.
+  // This must complete before any Firebase service is used.
+  await Firebase.initializeApp(
+    options: DefaultFirebaseOptions.currentPlatform,
+  );
+
   runApp(const FinvesteaApp());
 }
 
